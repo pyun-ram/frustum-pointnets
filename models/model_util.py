@@ -183,8 +183,8 @@ def placeholder_inputs(batch_size, num_point):
     heading_residual_label_pl = tf.placeholder(tf.float32, shape=(batch_size,))
     size_class_label_pl = tf.placeholder(tf.int32, shape=(batch_size,))
     size_residual_label_pl = tf.placeholder(tf.float32, shape=(batch_size,3))
-
-    return pointclouds_pl, one_hot_vec_pl, labels_pl, centers_pl, \
+    obj_xyz_pl = tf.placeholder(tf.float32, shape=(batch_size, num_point, 3))
+    return pointclouds_pl, one_hot_vec_pl, labels_pl, obj_xyz_pl, centers_pl, \
         heading_class_label_pl, heading_residual_label_pl, \
         size_class_label_pl, size_residual_label_pl
 
@@ -275,12 +275,13 @@ def get_center_regression_net(object_point_cloud, one_hot_vec,
     return predicted_center, end_points
 
 
-def get_loss(mask_label, center_label, \
+def get_loss(mask_label, obj_xyz_label, center_label, \
              heading_class_label, heading_residual_label, \
              size_class_label, size_residual_label, \
              end_points, \
              corner_loss_weight=10.0, \
-             box_loss_weight=1.0):
+             box_loss_weight=1.0,
+             obj_xyz_loss_weight=1.0):
     ''' Loss functions for 3D object detection.
     Input:
         mask_label: TF int32 tensor in shape (B,N)
@@ -300,6 +301,11 @@ def get_loss(mask_label, center_label, \
     mask_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(\
         logits=end_points['mask_logits'], labels=mask_label))
     tf.summary.scalar('3d mask loss', mask_loss)
+
+    # Object Coordinate loss
+    obj_xyz_dists = tf.norm(obj_xyz_label - end_points["obj_xyz"], axis=-1)
+    obj_xyz_loss = huber_loss(obj_xyz_dists, delta=2.0)
+    tf.summary.scalar('obj xyz loss', obj_xyz_loss)
 
     # Center regression losses
     center_dist = tf.norm(center_label - end_points['center'], axis=-1)
@@ -392,7 +398,7 @@ def get_loss(mask_label, center_label, \
         heading_residual_normalized_loss*20 + \
         size_residual_normalized_loss*20 + \
         stage1_center_loss + \
-        corner_loss_weight*corners_loss)
+        corner_loss_weight*corners_loss) + \
+        obj_xyz_loss_weight * obj_xyz_loss
     tf.add_to_collection('losses', total_loss)
-
     return total_loss

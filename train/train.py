@@ -98,7 +98,7 @@ def train():
     ''' Main function for training and simple evaluation. '''
     with tf.Graph().as_default():
         with tf.device('/gpu:'+str(GPU_INDEX)):
-            pointclouds_pl, one_hot_vec_pl, labels_pl, centers_pl, \
+            pointclouds_pl, one_hot_vec_pl, labels_pl, obj_xyz_pl, centers_pl, \
             heading_class_label_pl, heading_residual_label_pl, \
             size_class_label_pl, size_residual_label_pl = \
                 MODEL.placeholder_inputs(BATCH_SIZE, NUM_POINT)
@@ -116,7 +116,7 @@ def train():
             # Get model and losses 
             end_points = MODEL.get_model(pointclouds_pl, one_hot_vec_pl,
                 is_training_pl, bn_decay=bn_decay)
-            loss = MODEL.get_loss(labels_pl, centers_pl,
+            loss = MODEL.get_loss(labels_pl, obj_xyz_pl, centers_pl,
                 heading_class_label_pl, heading_residual_label_pl,
                 size_class_label_pl, size_residual_label_pl, end_points)
             tf.summary.scalar('loss', loss)
@@ -187,6 +187,7 @@ def train():
                'size_residual_label_pl': size_residual_label_pl,
                'is_training_pl': is_training_pl,
                'logits': end_points['mask_logits'],
+               'obj_xyz': end_points['obj_xyz'],
                'centers_pred': end_points['center'],
                'loss': loss,
                'train_op': train_op,

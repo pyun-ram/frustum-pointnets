@@ -105,6 +105,7 @@ def get_instance_seg_v1_net(point_cloud, one_hot_vec,
     obj_xyz = tf_util.conv2d(net2, 3, [1,1],
                          padding='VALID', stride=[1,1], activation_fn=None,
                          scope='conv15')
+    obj_xyz = tf.squeeze(obj_xyz, [2]) # BxNxC
     return logits, obj_xyz, end_points
  
 
