@@ -85,7 +85,27 @@ def get_instance_seg_v1_net(point_cloud, one_hot_vec,
                          padding='VALID', stride=[1,1], activation_fn=None,
                          scope='conv10')
     logits = tf.squeeze(logits, [2]) # BxNxC
-    return logits, end_points
+
+    net2 = tf_util.conv2d(concat_feat, 512, [1,1],
+                         padding='VALID', stride=[1,1],
+                         bn=True, is_training=is_training,
+                         scope='conv11', bn_decay=bn_decay)
+    net2 = tf_util.conv2d(net2, 256, [1,1],
+                         padding='VALID', stride=[1,1],
+                         bn=True, is_training=is_training,
+                         scope='conv12', bn_decay=bn_decay)
+    net2 = tf_util.conv2d(net2, 128, [1,1],
+                         padding='VALID', stride=[1,1],
+                         bn=True, is_training=is_training,
+                         scope='conv13', bn_decay=bn_decay)
+    net2 = tf_util.conv2d(net2, 128, [1,1],
+                         padding='VALID', stride=[1,1],
+                         bn=True, is_training=is_training,
+                         scope='conv14', bn_decay=bn_decay)
+    obj_xyz = tf_util.conv2d(net2, 3, [1,1],
+                         padding='VALID', stride=[1,1], activation_fn=None,
+                         scope='conv15')
+    return logits, obj_xyz, end_points
  
 
 def get_3d_box_estimation_v1_net(object_point_cloud, one_hot_vec,
@@ -154,10 +174,11 @@ def get_model(point_cloud, one_hot_vec, is_training, bn_decay=None):
     end_points = {}
     
     # 3D Instance Segmentation PointNet
-    logits, end_points = get_instance_seg_v1_net(\
+    logits, obj_xyz, end_points = get_instance_seg_v1_net(\
         point_cloud, one_hot_vec,
         is_training, bn_decay, end_points)
     end_points['mask_logits'] = logits
+    end_points['obj_xyz'] = obj_xyz
 
     # Masking
     # select masked points and translate to masked points' centroid
