@@ -32,7 +32,7 @@ parser.add_argument('--output', default='test_results', help='output file/folder
 parser.add_argument('--data_path', default=None, help='frustum dataset pickle filepath [default: None]')
 parser.add_argument('--from_rgb_detection', action='store_true', help='test from dataset files from rgb detection.')
 parser.add_argument('--idx_path', default=None, help='filename of txt where each line is a data idx, used for rgb detection -- write <id>.txt for all frames. [default: None]')
-parser.add_argument('--dump_result', action='store_true', help='If true, also dump results to .pickle file')
+parser.add_argument('--dump-result', default=False, action='store_true', help='If true, also dump results to .pickle file')
 FLAGS = parser.parse_args()
 
 # Set training configurations
@@ -55,14 +55,14 @@ def get_session_and_ops(batch_size, num_point):
     '''
     with tf.Graph().as_default():
         with tf.device('/gpu:'+str(GPU_INDEX)):
-            pointclouds_pl, one_hot_vec_pl, labels_pl, centers_pl, \
+            pointclouds_pl, one_hot_vec_pl, labels_pl, obj_xyz_pl, centers_pl, \
             heading_class_label_pl, heading_residual_label_pl, \
             size_class_label_pl, size_residual_label_pl = \
                 MODEL.placeholder_inputs(batch_size, num_point)
             is_training_pl = tf.placeholder(tf.bool, shape=())
             end_points = MODEL.get_model(pointclouds_pl, one_hot_vec_pl,
                 is_training_pl)
-            loss = MODEL.get_loss(labels_pl, centers_pl,
+            loss = MODEL.get_loss(labels_pl, obj_xyz_pl, centers_pl,
                 heading_class_label_pl, heading_residual_label_pl,
                 size_class_label_pl, size_residual_label_pl, end_points)
             saver = tf.train.Saver()
@@ -78,6 +78,7 @@ def get_session_and_ops(batch_size, num_point):
         ops = {'pointclouds_pl': pointclouds_pl,
                'one_hot_vec_pl': one_hot_vec_pl,
                'labels_pl': labels_pl,
+               'obj_xyz_pl': obj_xyz_pl,
                'centers_pl': centers_pl,
                'heading_class_label_pl': heading_class_label_pl,
                'heading_residual_label_pl': heading_residual_label_pl,
@@ -85,6 +86,7 @@ def get_session_and_ops(batch_size, num_point):
                'size_residual_label_pl': size_residual_label_pl,
                'is_training_pl': is_training_pl,
                'logits': end_points['mask_logits'],
+               'obj_xyz': end_points['obj_xyz'],
                'center': end_points['center'],
                'end_points': end_points,
                'loss': loss}
@@ -102,6 +104,7 @@ def inference(sess, ops, pc, one_hot_vec, batch_size):
     assert pc.shape[0]%batch_size == 0
     num_batches = pc.shape[0]/batch_size
     logits = np.zeros((pc.shape[0], pc.shape[1], NUM_CLASSES))
+    obj_xyzs = np.zeros((pc.shape[0], pc.shape[1], 3))
     centers = np.zeros((pc.shape[0], 3))
     heading_logits = np.zeros((pc.shape[0], NUM_HEADING_BIN))
     heading_residuals = np.zeros((pc.shape[0], NUM_HEADING_BIN))
@@ -118,13 +121,14 @@ def inference(sess, ops, pc, one_hot_vec, batch_size):
 
         batch_logits, batch_centers, \
         batch_heading_scores, batch_heading_residuals, \
-        batch_size_scores, batch_size_residuals = \
+        batch_size_scores, batch_size_residuals, batch_obj_xyz = \
             sess.run([ops['logits'], ops['center'],
                 ep['heading_scores'], ep['heading_residuals'],
-                ep['size_scores'], ep['size_residuals']],
+                ep['size_scores'], ep['size_residuals'], ops['obj_xyz']],
                 feed_dict=feed_dict)
 
         logits[i*batch_size:(i+1)*batch_size,...] = batch_logits
+        obj_xyzs[i*batch_size:(i+1)*batch_size,...] = batch_obj_xyz
         centers[i*batch_size:(i+1)*batch_size,...] = batch_centers
         heading_logits[i*batch_size:(i+1)*batch_size,...] = batch_heading_scores
         heading_residuals[i*batch_size:(i+1)*batch_size,...] = batch_heading_residuals
@@ -139,7 +143,7 @@ def inference(sess, ops, pc, one_hot_vec, batch_size):
         heading_prob = np.max(softmax(batch_heading_scores),1) # B
         size_prob = np.max(softmax(batch_size_scores),1) # B,
         batch_scores = np.log(mask_mean_prob) + np.log(heading_prob) + np.log(size_prob)
-        scores[i*batch_size:(i+1)*batch_size] = batch_scores 
+        scores[i*batch_size:(i+1)*batch_size] = batch_scores
         # Finished computing scores
 
     heading_cls = np.argmax(heading_logits, 1) # B
@@ -150,7 +154,7 @@ def inference(sess, ops, pc, one_hot_vec, batch_size):
         for i in range(pc.shape[0])])
 
     return np.argmax(logits, 2), centers, heading_cls, heading_res, \
-        size_cls, size_res, scores
+        size_cls, size_res, scores, obj_xyzs
 
 def write_detection_results(result_dir, id_list, type_list, box2d_list, center_list, \
                             heading_cls_list, heading_res_list, \
@@ -206,6 +210,7 @@ def test_from_rgb_detection(output_filename, result_dir=None):
     rot_angle_list = []
     score_list = []
     onehot_list = []
+    obj_xyz_list = []
 
     test_idxs = np.arange(0, len(TEST_DATASET))
     print(len(TEST_DATASET))
@@ -230,7 +235,7 @@ def test_from_rgb_detection(output_filename, result_dir=None):
         # Run one batch inference
 	batch_output, batch_center_pred, \
         batch_hclass_pred, batch_hres_pred, \
-        batch_sclass_pred, batch_sres_pred, batch_scores = \
+        batch_sclass_pred, batch_sres_pred, batch_scores, batch_obj_xyzs = \
             inference(sess, ops, batch_data_to_feed,
                 batch_one_hot_to_feed, batch_size=batch_size)
 	
@@ -246,6 +251,7 @@ def test_from_rgb_detection(output_filename, result_dir=None):
             #score_list.append(batch_scores[i])
             score_list.append(batch_rgb_prob[i]) # 2D RGB detection score
             onehot_list.append(batch_one_hot_vec[i])
+            obj_xyz_list.append(batch_obj_xyzs[i,...])
 
     if FLAGS.dump_result:
         with open(output_filename, 'wp') as fp:
@@ -259,6 +265,7 @@ def test_from_rgb_detection(output_filename, result_dir=None):
             pickle.dump(rot_angle_list, fp)
             pickle.dump(score_list, fp)
             pickle.dump(onehot_list, fp)
+            pickle.dump(obj_xyz_list, fp)
 
     # Write detection results for KITTI evaluation
     print('Number of point clouds: %d' % (len(ps_list)))
@@ -303,7 +310,7 @@ def test(output_filename, result_dir=None):
 
         batch_data, batch_label, batch_center, \
         batch_hclass, batch_hres, batch_sclass, batch_sres, \
-        batch_rot_angle, batch_one_hot_vec = \
+        batch_rot_angle, batch_one_hot_vec, batch_obj_xyz = \
             get_batch(TEST_DATASET, test_idxs, start_idx, end_idx,
                 NUM_POINT, NUM_CHANNEL)
 
