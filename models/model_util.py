@@ -304,6 +304,11 @@ def get_loss(mask_label, obj_xyz_label, center_label, \
 
     # Object Coordinate loss
     obj_xyz_dists = tf.norm(obj_xyz_label - end_points["obj_xyz"], axis=-1)
+    # print("mask_label shape is {}".format(mask_label.shape))
+    # print("mask_label type is {}".format(type(mask_label)))
+    # print("res shape is {}".format(tf.equal(mask_label, tf.ones(mask_label.shape, mask_label.dtype)).shape))
+    # print("obj_xyz_dists shape is {}".format(obj_xyz_dists.shape))
+    obj_xyz_dists = tf.boolean_mask(obj_xyz_dists, tf.equal(mask_label, tf.ones(mask_label.shape, mask_label.dtype)))
     obj_xyz_loss = huber_loss(obj_xyz_dists, delta=2.0)
     tf.summary.scalar('obj xyz loss', obj_xyz_loss)
 
