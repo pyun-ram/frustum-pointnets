@@ -180,6 +180,7 @@ class FrustumDataset(object):
         # ------------------------------ LABELS ----------------------------
         seg = self.label_list[index] 
         seg = seg[choice]
+        seg_bool = seg==1
 
         # Get center point of 3D box
         if self.rotate_to_center:
@@ -214,9 +215,20 @@ class FrustumDataset(object):
         angle_class, angle_residual = angle2class(heading_angle,
             NUM_HEADING_BIN)
 
+        obj_xyz = np.copy(point_set[:,:3]) - box3d_center
+        obj_xyz = rotate_pc_along_y(obj_xyz, heading_angle)
+        box3d_size = self.size_list[index]  # lwh
+        box3d_size = np.array([box3d_size[0], box3d_size[2], box3d_size[1]]) # xyz <-> lhw
+        assert np.where(box3d_size==0)[0].shape[0] == 0, "box3d_size contains 0, which will cause 0-divide error"
+        obj_xyz = obj_xyz / (box3d_size / 2.0) # normalize to [-1 , 1]
+        obj_xyz = (obj_xyz + 1 ) / 2.0 # normalize to [0 , 1]
+        # if seg_bool.max() == True:
+        #     if np.where(obj_xyz[seg_bool].min(axis=0) < 0)[0].shape[0] != 0 or np.where(obj_xyz[seg_bool].max(axis=0) > 1)[0].shape[0] != 0:
+        #         print("!!!obj_xyz range is {} - {}".format(obj_xyz[seg_bool].min(axis=0), obj_xyz[seg_bool].max(axis=0)))
+
         if self.one_hot:
             return point_set, seg, box3d_center, angle_class, angle_residual,\
-                size_class, size_residual, rot_angle, one_hot_vec
+                size_class, size_residual, rot_angle, one_hot_vec, obj_xyz
         else:
             return point_set, seg, box3d_center, angle_class, angle_residual,\
                 size_class, size_residual, rot_angle
