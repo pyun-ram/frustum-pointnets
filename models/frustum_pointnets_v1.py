@@ -35,9 +35,7 @@ def get_offset_regression_net(point_cloud, one_hot_vec,
     batch_size = point_cloud.get_shape()[0].value
     num_point = point_cloud.get_shape()[1].value
 
-    print("point_cloud shape is {}".format(point_cloud.shape))
     net = tf.expand_dims(point_cloud, 2)
-    print("point_cloud shape is {}".format(net.shape))
     net = tf_util.conv2d(net, 64, [1,1],
                          padding='VALID', stride=[1,1],
                          bn=True, is_training=is_training,
