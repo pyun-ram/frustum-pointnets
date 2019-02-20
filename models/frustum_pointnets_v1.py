@@ -15,6 +15,79 @@ from model_util import NUM_HEADING_BIN, NUM_SIZE_CLUSTER, NUM_OBJECT_POINT
 from model_util import point_cloud_masking, get_center_regression_net
 from model_util import placeholder_inputs, parse_output_to_tensors, get_loss
 
+def get_offset_regression_net(point_cloud, one_hot_vec,
+                              is_training, bn_decay, end_points):
+    '''offset regression PointNet.
+    Input:
+        point_cloud: TF tensor in shape (B,N,3)
+            3d object coordinate point clouds with XYZ
+            XYZs are in 3d object coordinate (after TNet transformation)
+        one_hot_vec: TF tensor in shape (B,3)
+            length-3 vectors indicating predicted object type
+        is_training: TF boolean scalar
+        bn_decay: TF float scalar
+        end_points: dict
+    Output:
+        offsets: TF tensor in shape (B,N,3) offset for each point respect to the object center
+            normalized in [0,1]
+        end_points: dict
+    '''
+    batch_size = point_cloud.get_shape()[0].value
+    num_point = point_cloud.get_shape()[1].value
+
+    print("point_cloud shape is {}".format(point_cloud.shape))
+    net = tf.expand_dims(point_cloud, 2)
+    print("point_cloud shape is {}".format(net.shape))
+    net = tf_util.conv2d(net, 64, [1,1],
+                         padding='VALID', stride=[1,1],
+                         bn=True, is_training=is_training,
+                         scope='offset-conv1', bn_decay=bn_decay)
+    net = tf_util.conv2d(net, 64, [1,1],
+                         padding='VALID', stride=[1,1],
+                         bn=True, is_training=is_training,
+                         scope='offset-conv2', bn_decay=bn_decay)
+    point_feat = tf_util.conv2d(net, 64, [1,1],
+                         padding='VALID', stride=[1,1],
+                         bn=True, is_training=is_training,
+                         scope='offset-conv3', bn_decay=bn_decay)
+    net = tf_util.conv2d(point_feat, 128, [1,1],
+                         padding='VALID', stride=[1,1],
+                         bn=True, is_training=is_training,
+                         scope='offset-conv4', bn_decay=bn_decay)
+    net = tf_util.conv2d(net, 1024, [1,1],
+                         padding='VALID', stride=[1,1],
+                         bn=True, is_training=is_training,
+                         scope='offset-conv5', bn_decay=bn_decay)
+    global_feat = tf_util.max_pool2d(net, [num_point,1],
+                                     padding='VALID', scope='maxpool')
+
+    global_feat = tf.concat([global_feat, tf.expand_dims(tf.expand_dims(one_hot_vec, 1), 1)], axis=3)
+    global_feat_expand = tf.tile(global_feat, [1, num_point, 1, 1])
+    concat_feat = tf.concat(axis=3, values=[point_feat, global_feat_expand])
+
+    net = tf_util.conv2d(concat_feat, 512, [1,1],
+                         padding='VALID', stride=[1,1],
+                         bn=True, is_training=is_training,
+                         scope='offset-conv6', bn_decay=bn_decay)
+    net = tf_util.conv2d(net, 256, [1,1],
+                         padding='VALID', stride=[1,1],
+                         bn=True, is_training=is_training,
+                         scope='offset-conv7', bn_decay=bn_decay)
+    net = tf_util.conv2d(net, 128, [1,1],
+                         padding='VALID', stride=[1,1],
+                         bn=True, is_training=is_training,
+                         scope='offset-conv8', bn_decay=bn_decay)
+    net = tf_util.conv2d(net, 128, [1,1],
+                         padding='VALID', stride=[1,1],
+                         bn=True, is_training=is_training,
+                         scope='offset-conv9', bn_decay=bn_decay)
+    net = tf_util.conv2d(net, 3, [1,1],
+                         padding='VALID', stride=[1,1], activation_fn=None,
+                         scope='offset-conv10')
+    offsets = tf.nn.sigmoid(net, name='offset-sigmoid')
+    offsets = tf.squeeze(offsets, [2]) # BxNxC
+    return offsets, end_points
+
 def get_instance_seg_v1_net(point_cloud, one_hot_vec,
                             is_training, bn_decay, end_points):
     ''' 3D instance segmentation PointNet v1 network.
@@ -182,6 +255,11 @@ def get_model(point_cloud, one_hot_vec, is_training, bn_decay=None):
     # Parse output to 3D box parameters
     end_points = parse_output_to_tensors(output, end_points)
     end_points['center'] = end_points['center_boxnet'] + stage1_center # Bx3
+
+    # Offset Estimation PointNet
+    offset, end_points = get_offset_regression_net(\
+        object_point_cloud_xyz_new, one_hot_vec,
+        is_training, bn_decay, end_points)
 
     return end_points
 
