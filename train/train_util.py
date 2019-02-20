@@ -30,6 +30,7 @@ def get_batch(dataset, idxs, start_idx, end_idx,
     bsize = end_idx-start_idx
     batch_data = np.zeros((bsize, num_point, num_channel))
     batch_label = np.zeros((bsize, num_point), dtype=np.int32)
+    batch_obj_xyz = np.zeros((bsize, num_point, 3))
     batch_center = np.zeros((bsize, 3))
     batch_heading_class = np.zeros((bsize,), dtype=np.int32)
     batch_heading_residual = np.zeros((bsize,))
@@ -40,7 +41,7 @@ def get_batch(dataset, idxs, start_idx, end_idx,
         batch_one_hot_vec = np.zeros((bsize,3)) # for car,ped,cyc
     for i in range(bsize):
         if dataset.one_hot:
-            ps,seg,center,hclass,hres,sclass,sres,rotangle,onehotvec = \
+            ps,seg,center,hclass,hres,sclass,sres,rotangle,onehotvec,obj_xyz = \
                 dataset[idxs[i+start_idx]]
             batch_one_hot_vec[i] = onehotvec
         else:
@@ -48,6 +49,7 @@ def get_batch(dataset, idxs, start_idx, end_idx,
                 dataset[idxs[i+start_idx]]
         batch_data[i,...] = ps[:,0:num_channel]
         batch_label[i,:] = seg
+        batch_obj_xyz[i,...] = obj_xyz
         batch_center[i,:] = center
         batch_heading_class[i] = hclass
         batch_heading_residual[i] = hres
@@ -58,7 +60,7 @@ def get_batch(dataset, idxs, start_idx, end_idx,
         return batch_data, batch_label, batch_center, \
             batch_heading_class, batch_heading_residual, \
             batch_size_class, batch_size_residual, \
-            batch_rot_angle, batch_one_hot_vec
+            batch_rot_angle, batch_one_hot_vec, batch_obj_xyz
     else:
         return batch_data, batch_label, batch_center, \
             batch_heading_class, batch_heading_residual, \

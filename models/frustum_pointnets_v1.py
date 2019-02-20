@@ -234,9 +234,9 @@ def get_model(point_cloud, one_hot_vec, is_training, bn_decay=None):
 
     # Masking
     # select masked points and translate to masked points' centroid
-    object_point_cloud_xyz, mask_xyz_mean, end_points = \
+    object_point_cloud_xyz, mask_xyz_mean, end_points, indices = \
         point_cloud_masking(point_cloud, logits, end_points)
-
+    end_points['indices'] = indices
     # T-Net and coordinate translation
     center_delta, end_points = get_center_regression_net(\
         object_point_cloud_xyz, one_hot_vec,
@@ -257,9 +257,10 @@ def get_model(point_cloud, one_hot_vec, is_training, bn_decay=None):
     end_points['center'] = end_points['center_boxnet'] + stage1_center # Bx3
 
     # Offset Estimation PointNet
-    offset, end_points = get_offset_regression_net(\
+    offsets, end_points = get_offset_regression_net(\
         object_point_cloud_xyz_new, one_hot_vec,
         is_training, bn_decay, end_points)
+    end_points['obj_xyz'] = offsets
 
     return end_points
 
