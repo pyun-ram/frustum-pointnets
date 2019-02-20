@@ -24,6 +24,25 @@ except NameError:
     raw_input = input  # Python 3
 
 
+def recover_obj_xyz(obj_xyz_norm, box3d):
+    '''
+    @func:
+    recover obj_xyz from normalized obj_xyz ([0,1])
+    @arg:
+        obj_xyz_norm: np.array [N, >=3]
+                      each row should contain [x, y, z, ...]
+        box3d: np.array [7,]: [h, w, l, tx, ty, tz, ry]
+    @return:
+        obj_xyz: obj_xyz in the camera coordinate
+    @author: Peng Yun (pyun@ust.hk)
+    '''
+    h, w, l, tx, ty, tz, ry = box3d
+    obj_xyz_rcv = obj_xyz_norm * 2.0 - 1
+    obj_xyz_rcv = obj_xyz_rcv * np.array([l/2.0, h/2.0, w/2.0])
+    obj_xyz_rcv = rotate_pc_along_y(obj_xyz_rcv, - ry)
+    obj_xyz_rcv = obj_xyz_rcv + np.array([tx, ty-h/2.0, tz])
+    return obj_xyz_rcv
+
 def rotate_pc_along_y(pc, rot_angle):
     '''
     Input:
@@ -222,6 +241,36 @@ class FrustumDataset(object):
         assert np.where(box3d_size==0)[0].shape[0] == 0, "box3d_size contains 0, which will cause 0-divide error"
         obj_xyz = obj_xyz / (box3d_size / 2.0) # normalize to [-1 , 1]
         obj_xyz = (obj_xyz + 1 ) / 2.0 # normalize to [0 , 1]
+
+        # Testing
+        # from open3d import *
+        # point_set = rotate_pc_along_y(point_set, -rot_angle)
+        # ps_pcd = PointCloud()
+        # ps_pcd.points = Vector3dVector(point_set[:, :3])
+        # write_point_cloud("vis/test_ps.pcd", ps_pcd)
+        # ps_mask_pcd = PointCloud()
+        # ps_mask_pcd.points = Vector3dVector(point_set[seg_bool][:, :3])
+        # write_point_cloud("vis/test_p_mask.pcd", ps_mask_pcd)
+        # obj_xyz_pcd = PointCloud()
+        # obj_xyz_pcd.points = Vector3dVector(obj_xyz[:, :3])
+        # write_point_cloud("vis/test_obj_xyz.pcd", obj_xyz_pcd)
+        # obj_xyz_mask_pcd = PointCloud()
+        # obj_xyz_mask_pcd.points = Vector3dVector(obj_xyz[seg_bool][:, :3])
+        # write_point_cloud("vis/test_obj_xyz_mask.pcd", obj_xyz_mask_pcd)
+        # print("box3d size is {}".format(box3d_size))
+        # print("box3d center is {}".format(box3d_center))
+        # print("box3d heading angle is {}".format(heading_angle))
+        # h,w,l,tx,ty,tz,ry = from_prediction_to_label_format(box3d_center,
+        #     angle_class, angle_residual,
+        #     size_class, size_residual, rot_angle)
+        # print("hwltxtytzry is {}".format(np.array([h,w,l,tx,ty,tz,ry])))
+        # # recover normalized obj_xyz_mask to camera frame
+        # obj_xyz_rcv = recover_obj_xyz(obj_xyz[seg_bool], np.array([h, w, l, tx, ty, tz, ry]))
+        # obj_xyz_rcv_pcd = PointCloud()
+        # obj_xyz_rcv_pcd.points = Vector3dVector(obj_xyz_rcv[:, :3])
+        # write_point_cloud("vis/test_obj_xyz_rcv.pcd", obj_xyz_rcv_pcd)
+        # print("diff max is {}".format( (obj_xyz_rcv - point_set[seg_bool][:,:3]).max()))
+        # print("diff mean is {}".format( (obj_xyz_rcv - point_set[seg_bool][:,:3]).mean()))
         # if seg_bool.max() == True:
         #     if np.where(obj_xyz[seg_bool].min(axis=0) < 0)[0].shape[0] != 0 or np.where(obj_xyz[seg_bool].max(axis=0) > 1)[0].shape[0] != 0:
         #         print("!!!obj_xyz range is {} - {}".format(obj_xyz[seg_bool].min(axis=0), obj_xyz[seg_bool].max(axis=0)))
