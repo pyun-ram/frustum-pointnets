@@ -23,6 +23,24 @@ try:
 except NameError:
     raw_input = input  # Python 3
 
+def recover_obj_xyz(obj_xyz_norm, box3d):
+    '''
+    @func:
+    recover obj_xyz from normalized obj_xyz ([0,1])
+    @arg:
+        obj_xyz_norm: np.array [N, >=3]
+                      each row should contain [x, y, z, ...]
+        box3d: np.array [7,]: [h, w, l, tx, ty, tz, ry]
+    @return:
+        obj_xyz: obj_xyz in the camera coordinate
+    @author: Peng Yun (pyun@ust.hk)
+    '''
+    h, w, l, tx, ty, tz, ry = box3d
+    obj_xyz_rcv = obj_xyz_norm * 2.0 - 1
+    obj_xyz_rcv = obj_xyz_rcv * np.array([l/2.0, h/2.0, w/2.0])
+    obj_xyz_rcv = rotate_pc_along_y(obj_xyz_rcv, - ry)
+    obj_xyz_rcv = obj_xyz_rcv + np.array([tx, ty-h/2.0, tz])
+    return obj_xyz_rcv
 
 def rotate_pc_along_y(pc, rot_angle):
     '''
