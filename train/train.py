@@ -315,13 +315,14 @@ def eval_one_epoch(sess, ops, test_writer):
         batch_data, batch_label, batch_center, \
         batch_hclass, batch_hres, \
         batch_sclass, batch_sres, \
-        batch_rot_angle, batch_one_hot_vec = \
+        batch_rot_angle, batch_one_hot_vec, batch_obj_xyz = \
             get_batch(TEST_DATASET, test_idxs, start_idx, end_idx,
                 NUM_POINT, NUM_CHANNEL)
 
         feed_dict = {ops['pointclouds_pl']: batch_data,
                      ops['one_hot_vec_pl']: batch_one_hot_vec,
                      ops['labels_pl']: batch_label,
+                     ops['obj_xyz_pl']: batch_obj_xyz,
                      ops['centers_pl']: batch_center,
                      ops['heading_class_label_pl']: batch_hclass,
                      ops['heading_residual_label_pl']: batch_hres,
