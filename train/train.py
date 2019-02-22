@@ -301,6 +301,7 @@ def eval_one_epoch(sess, ops, test_writer):
     total_correct = 0
     total_seen = 0
     loss_sum = 0
+    total_offset_diff = []
     total_seen_class = [0 for _ in range(NUM_CLASSES)]
     total_correct_class = [0 for _ in range(NUM_CLASSES)]
     iou2ds_sum = 0
@@ -330,10 +331,11 @@ def eval_one_epoch(sess, ops, test_writer):
                      ops['size_residual_label_pl']: batch_sres,
                      ops['is_training_pl']: is_training}
 
-        summary, step, loss_val, logits_val, iou2ds, iou3ds = \
+        summary, step, loss_val, logits_val, iou2ds, iou3ds, offset_label, offset_est = \
             sess.run([ops['merged'], ops['step'],
                 ops['loss'], ops['logits'], 
-                ops['end_points']['iou2ds'], ops['end_points']['iou3ds']],
+                ops['end_points']['iou2ds'], ops['end_points']['iou3ds'],
+                ops['end_points']['obj_xyz_label_masked'], ops['end_points']['obj_xyz']],
                 feed_dict=feed_dict)
         test_writer.add_summary(summary, step)
 
@@ -342,6 +344,7 @@ def eval_one_epoch(sess, ops, test_writer):
         total_correct += correct
         total_seen += (BATCH_SIZE*NUM_POINT)
         loss_sum += loss_val
+        total_offset_diff.append(np.abs(offset_label-offset_est))
         for l in range(NUM_CLASSES):
             total_seen_class[l] += np.sum(batch_label==l)
             total_correct_class[l] += (np.sum((preds_val==l) & (batch_label==l)))
@@ -371,6 +374,11 @@ def eval_one_epoch(sess, ops, test_writer):
             float(num_batches*BATCH_SIZE)))
     log_string('eval box estimation accuracy (IoU=0.7): %f' % \
         (float(iou3d_correct_cnt)/float(num_batches*BATCH_SIZE)))
+    total_offset_diff = np.concatenate(total_offset_diff, axis=0)
+    log_string('eval offset dist max: {}'.format(total_offset_diff.max(axis=(0,1))))
+    log_string('eval offset dist min: {}'.format(total_offset_diff.min(axis=(0,1))))
+    log_string('eval offset dist mean: {}'.format(total_offset_diff.mean(axis=(0,1))))
+    log_string('eval offset dist var: {}'.format(total_offset_diff.var(axis=(0,1))))
          
     EPOCH_CNT += 1
 

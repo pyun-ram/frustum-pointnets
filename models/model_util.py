@@ -306,6 +306,7 @@ def get_loss(mask_label, obj_xyz_label, center_label, \
     obj_xyz_label_masked = tf.gather_nd(obj_xyz_label, end_points['indices'])
     obj_xyz_dists = tf.norm(obj_xyz_label_masked - end_points["obj_xyz"], axis=-1)
     obj_xyz_loss = huber_loss(obj_xyz_dists, delta=2.0)
+    end_points["obj_xyz_label_masked"] = obj_xyz_label_masked
     tf.summary.scalar('obj xyz loss', obj_xyz_loss)
 
     # Center regression losses
