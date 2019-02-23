@@ -235,6 +235,7 @@ def get_model(point_cloud, one_hot_vec, is_training, bn_decay=None):
     object_point_cloud_xyz, mask_xyz_mean, end_points, indices = \
         point_cloud_masking(point_cloud, logits, end_points)
     end_points['indices'] = indices
+    end_points['pc-selected'] = tf.gather_nd(point_cloud, end_points['indices'])
     # T-Net and coordinate translation
     center_delta, end_points = get_center_regression_net(\
         object_point_cloud_xyz, one_hot_vec,

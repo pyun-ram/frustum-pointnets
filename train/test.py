@@ -106,6 +106,7 @@ def inference(sess, ops, pc, one_hot_vec, batch_size):
     logits = np.zeros((pc.shape[0], pc.shape[1], NUM_CLASSES))
     centers = np.zeros((pc.shape[0], 3))
     obj_xyzs = np.zeros((pc.shape[0], NUM_OBJECT_POINT, 3))
+    pc_selected = np.zeros((pc.shape[0], NUM_OBJECT_POINT, 4))
     heading_logits = np.zeros((pc.shape[0], NUM_HEADING_BIN))
     heading_residuals = np.zeros((pc.shape[0], NUM_HEADING_BIN))
     size_logits = np.zeros((pc.shape[0], NUM_SIZE_CLUSTER))
@@ -121,14 +122,15 @@ def inference(sess, ops, pc, one_hot_vec, batch_size):
 
         batch_logits, batch_centers, \
         batch_heading_scores, batch_heading_residuals, \
-        batch_size_scores, batch_size_residuals, batch_obj_xyz = \
+        batch_size_scores, batch_size_residuals, batch_obj_xyz, batch_pc_selected = \
             sess.run([ops['logits'], ops['center'],
                 ep['heading_scores'], ep['heading_residuals'],
-                ep['size_scores'], ep['size_residuals'], ops['obj_xyz']],
+                ep['size_scores'], ep['size_residuals'], ops['obj_xyz'], ep['pc-selected']],
                 feed_dict=feed_dict)
 
         logits[i*batch_size:(i+1)*batch_size,...] = batch_logits
         obj_xyzs[i*batch_size:(i+1)*batch_size,...] = batch_obj_xyz
+        pc_selected[i*batch_size:(i+1)*batch_size,...] = batch_pc_selected
         centers[i*batch_size:(i+1)*batch_size,...] = batch_centers
         heading_logits[i*batch_size:(i+1)*batch_size,...] = batch_heading_scores
         heading_residuals[i*batch_size:(i+1)*batch_size,...] = batch_heading_residuals
@@ -154,7 +156,7 @@ def inference(sess, ops, pc, one_hot_vec, batch_size):
         for i in range(pc.shape[0])])
 
     return np.argmax(logits, 2), centers, heading_cls, heading_res, \
-        size_cls, size_res, scores, obj_xyzs
+        size_cls, size_res, scores, obj_xyzs, pc_selected
 
 def write_detection_results(result_dir, id_list, type_list, box2d_list, center_list, \
                             heading_cls_list, heading_res_list, \
@@ -212,6 +214,7 @@ def test_from_rgb_detection(output_filename, result_dir=None):
     score_list = []
     onehot_list = []
     obj_xyz_list = []
+    pc_selected_list = []
 
     test_idxs = np.arange(0, len(TEST_DATASET))
     print(len(TEST_DATASET))
@@ -236,7 +239,7 @@ def test_from_rgb_detection(output_filename, result_dir=None):
         # Run one batch inference
         batch_output, batch_center_pred, \
         batch_hclass_pred, batch_hres_pred, \
-        batch_sclass_pred, batch_sres_pred, batch_scores, batch_obj_xyzs = \
+        batch_sclass_pred, batch_sres_pred, batch_scores, batch_obj_xyzs, batch_pc_selected = \
             inference(sess, ops, batch_data_to_feed,
                 batch_one_hot_to_feed, batch_size=batch_size)
 	
@@ -253,6 +256,7 @@ def test_from_rgb_detection(output_filename, result_dir=None):
             score_list.append(batch_rgb_prob[i]) # 2D RGB detection score
             onehot_list.append(batch_one_hot_vec[i])
             obj_xyz_list.append(batch_obj_xyzs[i,...])
+            pc_selected_list.append(batch_pc_selected[i,...])
 
     if FLAGS.dump_result:
         with open(output_filename, 'wp') as fp:
@@ -267,6 +271,7 @@ def test_from_rgb_detection(output_filename, result_dir=None):
             pickle.dump(score_list, fp)
             pickle.dump(onehot_list, fp)
             pickle.dump(obj_xyz_list, fp)
+            pickle.dump(pc_selected_list, fp)
 
     # Write detection results for KITTI evaluation
     print('Number of point clouds: %d' % (len(ps_list)))
