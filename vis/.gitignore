@@ -1,3 +1,4 @@
 *.pcd
 *.cam
 .ipynb_checkpoints
+*.png

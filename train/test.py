@@ -161,23 +161,36 @@ def inference(sess, ops, pc, one_hot_vec, batch_size):
 def write_detection_results(result_dir, id_list, type_list, box2d_list, center_list, \
                             heading_cls_list, heading_res_list, \
                             size_cls_list, size_res_list, \
-                            rot_angle_list, score_list):
+                            rot_angle_list, score_list, obj_xyz_list=None, pc_selected_list=None):
     ''' Write frustum pointnets results to KITTI format label files. '''
-    print("result_dir is {}".format(result_dir))
     if result_dir is None: return
     results = {} # map from idx to list of strings, each string is a line (without \n)
     for i in range(len(center_list)):
-        idx = id_list[i]
-        output_str = type_list[i] + " -1 -1 -10 "
-        box2d = box2d_list[i]
-        output_str += "%f %f %f %f " % (box2d[0],box2d[1],box2d[2],box2d[3])
-        h,w,l,tx,ty,tz,ry = provider.from_prediction_to_label_format(center_list[i],
-            heading_cls_list[i], heading_res_list[i],
-            size_cls_list[i], size_res_list[i], rot_angle_list[i])
-        score = score_list[i]
-        output_str += "%f %f %f %f %f %f %f %f" % (h,w,l,tx,ty,tz,ry,score)
-        if idx not in results: results[idx] = []
-        results[idx].append(output_str)
+        if obj_xyz_list == None or pc_selected_list == None:
+            idx = id_list[i]
+            output_str = type_list[i] + " -1 -1 -10 "
+            box2d = box2d_list[i]
+            output_str += "%f %f %f %f " % (box2d[0],box2d[1],box2d[2],box2d[3])
+            h,w,l,tx,ty,tz,ry = provider.from_prediction_to_label_format(center_list[i],
+                heading_cls_list[i], heading_res_list[i],
+                size_cls_list[i], size_res_list[i], rot_angle_list[i])
+            score = score_list[i]
+            output_str += "%f %f %f %f %f %f %f %f" % (h,w,l,tx,ty,tz,ry,score)
+            if idx not in results: results[idx] = []
+            results[idx].append(output_str)
+        else:
+            idx = id_list[i]
+            output_str = type_list[i] + " -1 -1 -10 "
+            box2d = box2d_list[i]
+            output_str += "%f %f %f %f " % (box2d[0],box2d[1],box2d[2],box2d[3])
+            h,w,l,tx,ty,tz,ry = provider.from_prediction_to_label_format(center_list[i],
+                heading_cls_list[i], heading_res_list[i],
+                size_cls_list[i], size_res_list[i], rot_angle_list[i])
+            tx,ty,tz = provider.recover_bottom_center(pc_selected_list[i], obj_xyz_list[i], np.array([l,h,w]), rot_angle_list[i], ry)
+            score = score_list[i]
+            output_str += "%f %f %f %f %f %f %f %f" % (h,w,l,tx,ty,tz,ry,score)
+            if idx not in results: results[idx] = []
+            results[idx].append(output_str)            
 
     # Write TXT files
     if not os.path.exists(result_dir): os.mkdir(result_dir)
@@ -278,7 +291,7 @@ def test_from_rgb_detection(output_filename, result_dir=None):
     write_detection_results(result_dir, TEST_DATASET.id_list,
         TEST_DATASET.type_list, TEST_DATASET.box2d_list,
         center_list, heading_cls_list, heading_res_list,
-        size_cls_list, size_res_list, rot_angle_list, score_list)
+        size_cls_list, size_res_list, rot_angle_list, score_list, obj_xyz_list, pc_selected_list)
     # Make sure for each frame (no matter if we have measurment for that frame),
     # there is a TXT file
     output_dir = os.path.join(result_dir, 'data')

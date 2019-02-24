@@ -23,6 +23,35 @@ try:
 except NameError:
     raw_input = input  # Python 3
 
+def recover_bottom_center(pc_frustrum, pc_obj_, boxsize, rot_angle, ry):
+    '''
+    recover the center point coordinate with the equation:
+        p_o^c = p_i^c - R_o^c * p_i^o
+    inputs:
+        pc_camera: numpy.array [#of points, >=3]
+            coordinates of the points in the camera frame
+        pc_obj: numpy.array [#of points, >=3]
+            coordinates of the points in the object frame
+        boxsize: numpy.array [3,] ([lhw])
+        ry: float (rad)
+    outputs:
+        numpy.array [#of points, 3]
+    '''
+    # print("pc_frustrum shape is {}".format(pc_frustrum.shape))
+    # print("pc_obj_ shape is {}".format(pc_obj_.shape))
+    # print("boxsize is {}".format(boxsize))
+    # print("rot_angle is {}".format(rot_angle))
+    # print("ry is {}".format(ry))
+    pc_camera = rotate_pc_along_y(np.copy(pc_frustrum[:,:3]), -rot_angle)
+    pc_obj = np.copy(pc_obj_)
+    pc_obj = pc_obj * 2.0 - 1
+    pc_obj = pc_obj * (boxsize / 2.0)
+    _,h,_ = boxsize
+    tmp = rotate_pc_along_y(np.copy(pc_obj), ry)
+    bottom_centers = pc_camera - tmp - np.array([0,-h/2.0,0])
+    bottom_center = bottom_centers.mean(axis=0)
+    return bottom_center[0], bottom_center[1], bottom_center[2]
+
 def recover_obj_xyz(obj_xyz_norm, box3d):
     '''
     @func:
@@ -374,7 +403,7 @@ def from_prediction_to_label_format(center, angle_class, angle_res,\
     ''' Convert predicted box parameters to label format. '''
     l,w,h = class2size(size_class, size_res)
     ry = class2angle(angle_class, angle_res, NUM_HEADING_BIN) + rot_angle
-    tx,ty,tz = rotate_pc_along_y(np.expand_dims(center,0),-rot_angle).squeeze()
+    tx,ty,tz = rotate_pc_along_y(np.expand_dims(center,0),-rot_angle).squeeze() # TODO:Potential Bug here!
     ty += h/2.0
     return h,w,l,tx,ty,tz,ry
 
