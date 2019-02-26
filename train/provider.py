@@ -37,6 +37,7 @@ def recover_bottom_center(pc_frustrum, pc_obj_, boxsize, rot_angle, ry):
     outputs:
         numpy.array [#of points, 3]
     '''
+    print("recover_bottom_center")
     obj_xyz = np.copy(pc_obj_)
     obj_xyz = obj_xyz * 2.0 - 1
     obj_xyz = obj_xyz * boxsize / 2.0
