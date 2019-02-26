@@ -37,20 +37,16 @@ def recover_bottom_center(pc_frustrum, pc_obj_, boxsize, rot_angle, ry):
     outputs:
         numpy.array [#of points, 3]
     '''
-    # print("pc_frustrum shape is {}".format(pc_frustrum.shape))
-    # print("pc_obj_ shape is {}".format(pc_obj_.shape))
-    # print("boxsize is {}".format(boxsize))
-    # print("rot_angle is {}".format(rot_angle))
-    # print("ry is {}".format(ry))
-    pc_camera = rotate_pc_along_y(np.copy(pc_frustrum[:,:3]), -rot_angle)
-    pc_obj = np.copy(pc_obj_)
-    pc_obj = pc_obj * 2.0 - 1
-    pc_obj = pc_obj * (boxsize / 2.0)
-    _,h,_ = boxsize
-    tmp = rotate_pc_along_y(np.copy(pc_obj), ry)
-    bottom_centers = pc_camera - tmp - np.array([0,-h/2.0,0])
-    bottom_center = bottom_centers.mean(axis=0)
-    return bottom_center[0], bottom_center[1], bottom_center[2]
+    obj_xyz = np.copy(pc_obj_)
+    obj_xyz = obj_xyz * 2.0 - 1
+    obj_xyz = obj_xyz * boxsize / 2.0
+    obj_xyz = rotate_pc_along_y(obj_xyz, -(ry - rot_angle))
+    box3d_center = pc_frustrum[:, :3] - obj_xyz
+    _, h, _ = boxsize
+    box3d_center_cam = rotate_pc_along_y(box3d_center, -rot_angle)
+    bottom_center_cam = box3d_center_cam + np.array([0,h/2.0,0])
+    bottom_center_cam = bottom_center_cam.mean(axis=0)
+    return bottom_center_cam[0], bottom_center_cam[1], bottom_center_cam[2]
 
 def recover_obj_xyz(obj_xyz_norm, box3d):
     '''
